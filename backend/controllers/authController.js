@@ -1,0 +1,270 @@
+const db = require('./../db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+// Signup - Create new user
+exports.signup = async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Email, password, and name are required',
+      });
+    }
+
+    // Check if user already exists
+    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const existingUser = findStmt.get(email);
+
+    if (existingUser) {
+      // Check if this is an old Auth0 user (no password_hash)
+      if (!existingUser.password_hash) {
+        // This is an old Auth0 user, they need to sign up again
+        return res.status(400).json({
+          status: 'fail',
+          message: 'This email was used with the old authentication system. Please contact support or use a different email.',
+        });
+      }
+      return res.status(400).json({
+        status: 'fail',
+        message: 'User with this email already exists',
+      });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new user
+    const insertStmt = db.prepare(
+      'INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)'
+    );
+    const result = insertStmt.run(email, name, password_hash);
+
+    const newUser = {
+      id: result.lastInsertRowid,
+      email,
+      name,
+    };
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: newUser.id, email: newUser.email },
+      process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      status: 'success',
+      data: {
+        user: newUser,
+        token,
+      },
+    });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+};
+
+// Login - Authenticate user
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Email and password are required',
+      });
+    }
+
+    // Find user by email
+    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const user = findStmt.get(email);
+
+    if (!user) {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Invalid email or password',
+      });
+    }
+
+    // Check if user has password_hash (not an old Auth0 user)
+    if (!user.password_hash) {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'This account was created with the old authentication system. Please sign up again.',
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        status: 'fail',
+        message: 'Invalid email or password',
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+        token,
+      },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    console.error('Error details:', err.stack);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+};
+
+// Forgot Password - Generate reset token
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Email is required',
+      });
+    }
+
+    // Find user by email
+    const findStmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const user = findStmt.get(email);
+
+    if (!user) {
+      // Don't reveal if user exists or not (security best practice)
+      return res.status(200).json({
+        status: 'success',
+        message: 'If an account with that email exists, a password reset link has been sent.',
+      });
+    }
+
+    // Generate reset token (random string)
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Set expiration (1 hour from now)
+    const resetTokenExpires = new Date();
+    resetTokenExpires.setHours(resetTokenExpires.getHours() + 1);
+
+    // Save reset token to database
+    const updateStmt = db.prepare(
+      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?'
+    );
+    updateStmt.run(resetToken, resetTokenExpires.toISOString(), email);
+
+    // In production, you would send an email here with the reset link
+    // For now, we'll return the token in development mode
+    if (process.env.NODE_ENV === 'development') {
+      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+      console.log('Password reset link (DEV MODE):', resetLink);
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'If an account with that email exists, a password reset link has been sent.',
+        // Only return token in development
+        resetToken: resetToken,
+        resetLink: resetLink,
+      });
+    }
+
+    // In production, send email (you would use nodemailer or similar)
+    // For MVP, we'll just return success
+    res.status(200).json({
+      status: 'success',
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+};
+
+// Reset Password - Update password with reset token
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Token and password are required',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    // Find user by reset token
+    const findStmt = db.prepare(
+      'SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > datetime("now")'
+    );
+    const user = findStmt.get(token);
+
+    if (!user) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid or expired reset token',
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // Update password and clear reset token
+    const updateStmt = db.prepare(
+      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?'
+    );
+    updateStmt.run(password_hash, user.id);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password has been reset successfully',
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+};
+

@@ -1,0 +1,39 @@
+import { Landing, Profile, Dashboard, ForgotPassword, ResetPassword } from "./pages";
+import { BrowserRouter as Router, Route, Routes} from "react-router-dom";
+import { EntryIdProvider, UserIdProvider, SelectedentryIdProvider, ScriptProvider } from "./components";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <UserIdProvider>
+        <EntryIdProvider>
+          <SelectedentryIdProvider>
+            <ScriptProvider>
+              <Router>
+                <Routes>
+                  <Route exact path='/' element={<Landing/>}></Route>
+                  <Route exact path='/forgot-password' element={<ForgotPassword/>}></Route>
+                  <Route exact path='/reset-password' element={<ResetPassword/>}></Route>
+                  <Route exact path='/me' element={
+                    <ProtectedRoute>
+                      <Dashboard/>
+                    </ProtectedRoute>
+                  }></Route>
+                  <Route exact path='/profile' element={
+                    <ProtectedRoute>
+                      <Profile/>
+                    </ProtectedRoute>
+                  }></Route>
+                </Routes>
+              </Router> 
+            </ScriptProvider>
+          </SelectedentryIdProvider>
+        </EntryIdProvider>
+      </UserIdProvider>
+    </AuthProvider>
+  );
+};
+
+export default App;

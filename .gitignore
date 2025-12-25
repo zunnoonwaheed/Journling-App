@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+config.env
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+journal.db*
+
+# Audio files and uploads
+backend/audio_files/
+backend/uploads/
+audio_files/
+uploads/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
