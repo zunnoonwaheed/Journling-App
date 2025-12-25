@@ -1,4 +1,4 @@
-import { Landing, Profile, Dashboard, ForgotPassword, ResetPassword } from "./pages";
+import { Landing, Profile, Dashboard, ForgotPassword, ResetPassword } from "./Pages";
 import { BrowserRouter as Router, Route, Routes} from "react-router-dom";
 import { EntryIdProvider, UserIdProvider, SelectedentryIdProvider, ScriptProvider } from "./components";
 import { AuthProvider } from "./contexts/AuthContext";
