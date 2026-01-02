@@ -1,6 +1,7 @@
 import { useEntryId } from "./EntryIdContext";
 import { UserIdContext} from "./UserIdContext";
 import { useSelectedentryId } from "./SelectedEntryIdContext";
+import { useSelectedEntry } from "./SelectedEntryContext";
 import { useAuth } from "../contexts/AuthContext";
 import axios from "axios";
 import { useState, useEffect, useContext, useRef } from "react";
@@ -61,9 +62,20 @@ const EntryList = ({ showRecordingControls = false }) => {
 
     const getEntries = async(userId) => {
         if (!userId || !token) return;
+        
+        // Ensure userId is an integer (not a UUID)
+        const numericUserId = typeof userId === 'string' && userId.includes('-') 
+            ? null 
+            : parseInt(userId, 10);
+        
+        if (!numericUserId || isNaN(numericUserId)) {
+            console.warn('Invalid userId for getEntries:', userId);
+            return;
+        }
+        
         try {
             const response = await axios.get(
-                API_BASE + '/users/' + userId +'/entries',
+                API_BASE + '/users/' + numericUserId +'/entries',
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -88,7 +100,22 @@ const EntryList = ({ showRecordingControls = false }) => {
 
     const handleCreateEntry = async(e) => {
         e.preventDefault();
-        if (!userId || !token) return;
+        if (!userId || !token) {
+            alert('User not authenticated. Please try logging in again.');
+            return;
+        }
+        
+        // Ensure userId is an integer (not a UUID)
+        const numericUserId = typeof userId === 'string' && userId.includes('-') 
+            ? null 
+            : parseInt(userId, 10);
+        
+        if (!numericUserId || isNaN(numericUserId)) {
+            alert('User ID is invalid. Please wait for account sync to complete or try logging in again.');
+            console.error('Invalid userId:', userId);
+            return;
+        }
+        
         if (!script || script.trim() === '') {
             alert('Please record a journal entry first');
             return;
@@ -96,7 +123,7 @@ const EntryList = ({ showRecordingControls = false }) => {
         
         try {
             const response = await axios.post(
-                API_BASE + '/users/' + userId + '/entries',
+                API_BASE + '/users/' + numericUserId + '/entries',
                 {
                     transcript: script,
                     duration_ms: recordingData.duration_ms,
@@ -114,6 +141,7 @@ const EntryList = ({ showRecordingControls = false }) => {
             const newEntryData = response.data.data.entry;
             
             // Save transcript to transcripts table if we have a transcript
+            // Note: The backend automatically updates the entry with transcript_id, so no need for additional calls
             if (script && script.trim() !== '' && newEntryData.id) {
                 try {
                     await axios.post(
@@ -131,27 +159,7 @@ const EntryList = ({ showRecordingControls = false }) => {
                             },
                         }
                     );
-                    // Update entry with transcript_id
-                    const transcriptResponse = await axios.get(
-                        API_BASE + '/recordings/' + newEntryData.id + '/transcript',
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                            },
-                        }
-                    );
-                    if (transcriptResponse.data.data.transcript) {
-                        await axios.patch(
-                            API_BASE + '/users/' + userId + '/entries/' + newEntryData.id,
-                            { transcript_id: transcriptResponse.data.data.transcript.id },
-                            {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`,
-                                    'Content-Type': 'application/json',
-                                },
-                            }
-                        );
-                    }
+                    // Backend already updates the entry with transcript_id, so no need for GET + PATCH
                 } catch (transcriptError) {
                     console.error('Error saving transcript:', transcriptError);
                     // Don't fail the whole process if transcript saving fails
@@ -621,16 +629,25 @@ const Entry = ({
     const { token } = useAuth();
     const { userId } = useContext(UserIdContext);
     const {selectedentryId, setSelectedentryId} = useSelectedentryId();
+    const { setSelectedEntry } = useSelectedEntry();
     const [audioURL, setAudioURL] = useState(null);
 
     // Load audio file if local_path exists
     useEffect(() => {
         if (entry.local_path) {
-            // Construct audio URL from backend
-            const audioPath = entry.local_path.startsWith('audio_files/') 
-                ? entry.local_path 
-                : `audio_files/${entry.local_path}`;
-            setAudioURL(`${API_BASE}/audio/${audioPath}`);
+            // local_path is already a Supabase Storage public URL, use it directly
+            // If it's a full URL (starts with http/https), use it as-is
+            // Otherwise, it might be a relative path (legacy format)
+            if (entry.local_path.startsWith('http://') || entry.local_path.startsWith('https://')) {
+                setAudioURL(entry.local_path);
+            } else {
+                // Legacy format - construct Supabase Storage URL
+                // This shouldn't happen with current implementation, but handle it for backwards compatibility
+                console.warn('Legacy audio path format detected:', entry.local_path);
+                setAudioURL(null);
+            }
+        } else {
+            setAudioURL(null);
         }
     }, [entry.local_path]);
 
@@ -663,6 +680,8 @@ const Entry = ({
         e.preventDefault();
         setEntryId(entry.id);
         setSelectedentryId(entry.id);
+        // Set the full entry object for instant transcript display
+        setSelectedEntry(entry);
     };
 
     const formatTime = (dateString) => {

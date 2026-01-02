@@ -4,9 +4,32 @@ const { syncEntryToRestDb } = require('../services/restdbService');
 // Get a specific entry for a logged-in user
 exports.getEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId = req.user?.userId || req.params.userId;
 
   try {
+    // If userId is a UUID (Supabase user), look up the local user ID from email
+    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({ 
+          status: 'fail', 
+          message: 'User not found in local database. Please sync your account first.' 
+        });
+      }
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ 
+        status: 'fail', 
+        message: 'Invalid user ID' 
+      });
+    }
+
     const { rows } = await db.query(
       `SELECT id, user_id, transcript, created_at, updated_at, duration_ms, local_path, transcript_id, journal_date, drive_sync_enabled, sync_status, last_sync_error
        FROM entries WHERE id = $1 AND user_id = $2`,
@@ -27,7 +50,30 @@ exports.getEntry = async (req, res) => {
 
 // Get all entries for a user
 exports.getAllEntries = async (req, res) => {
-  const userId = req.user?.userId || req.params.userId;
+  let userId = req.user?.userId || req.params.userId;
+  
+  // If userId is a UUID (Supabase user), look up the local user ID from email
+  if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+    const email = req.user.email;
+    const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userResult.rows[0]) {
+      userId = userResult.rows[0].id;
+    } else {
+      return res.status(404).json({ 
+        status: 'fail', 
+        message: 'User not found in local database. Please sync your account first.' 
+      });
+    }
+  }
+  
+  // Ensure userId is an integer
+  userId = parseInt(userId, 10);
+  if (isNaN(userId)) {
+    return res.status(400).json({ 
+      status: 'fail', 
+      message: 'Invalid user ID' 
+    });
+  }
 
   try {
     const { rows } = await db.query(
@@ -129,10 +175,33 @@ exports.deleteEntry = async (req, res) => {
 
 // Create a new entry
 exports.createEntry = async (req, res) => {
-  const userId = req.user?.userId || req.params.userId;
+  let userId = req.user?.userId || req.params.userId;
   const { transcript, duration_ms, local_path, journal_date } = req.body;
 
   try {
+    // If userId is a UUID (Supabase user), look up the local user ID from email
+    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({ 
+          status: 'fail', 
+          message: 'User not found in local database. Please sync your account first.' 
+        });
+      }
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ 
+        status: 'fail', 
+        message: 'Invalid user ID' 
+      });
+    }
+
     const journalDate = journal_date || new Date().toISOString().split('T')[0];
     const { rows } = await db.query(
       `INSERT INTO entries (user_id, transcript, duration_ms, local_path, journal_date, created_at, updated_at)
