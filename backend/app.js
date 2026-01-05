@@ -11,7 +11,19 @@ const authRouter = require('./routes/authRoutes');
 const transcriptionRouter = require('./routes/transcriptionRoutes');
 const transcriptRouter = require('./routes/transcriptRoutes');
 
-app.use(cors());
+// CORS configuration to allow requests from Vercel frontend and localhost
+const corsOptions = {
+  origin: [
+    'https://ai-journaling-app-main.vercel.app',
+    'http://localhost:5173',
+    /\.vercel\.app$/, // Allow all Vercel preview deployments
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json());
 
