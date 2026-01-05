@@ -13,11 +13,23 @@ const transcriptRouter = require('./routes/transcriptRoutes');
 
 // CORS configuration to allow requests from Vercel frontend and localhost
 const corsOptions = {
-  origin: [
-    'https://ai-journaling-app-main.vercel.app',
-    'http://localhost:5173',
-    /\.vercel\.app$/, // Allow all Vercel preview deployments
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'https://ai-journaling-app-main.vercel.app',
+      'http://localhost:5173',
+    ];
+    
+    // Check if origin is in allowed list or is a Vercel preview deployment
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
