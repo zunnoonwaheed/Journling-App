@@ -37,6 +37,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Manual OPTIONS handler as fallback for preflight requests
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 
 // Auth routes (signup/login) - no authentication required
