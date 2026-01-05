@@ -42,7 +42,14 @@ app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
+// Add request logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`[Express] ${req.method} ${req.url}`);
+  next();
+});
+
 // Auth routes (signup/login) - no authentication required
+// Mount BEFORE other /api/journal-ease routes to ensure proper matching
 app.use('/api/journal-ease/auth', authRouter);
 
 // Transcription route - no authentication required (or add if needed)
