@@ -1,7 +1,35 @@
 const app = require('../../app');
 
+// Helper function to set CORS headers
+function setCorsHeaders(res, origin) {
+  const allowedOrigins = [
+    'https://ai-journaling-app-main.vercel.app',
+    'http://localhost:5173',
+  ];
+  
+  // Check if origin is allowed
+  if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return true;
+  }
+  return false;
+}
+
 // Export as Vercel serverless function handler
 module.exports = async (req, res) => {
+  // Handle OPTIONS preflight requests immediately
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin || req.headers.referer;
+    if (setCorsHeaders(res, origin)) {
+      return res.status(204).end();
+    } else {
+      return res.status(403).end();
+    }
+  }
+  
   // Log for debugging
   console.log('=== Serverless Function Invoked ===');
   console.log('Method:', req.method);

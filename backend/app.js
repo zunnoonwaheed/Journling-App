@@ -33,11 +33,14 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Manual OPTIONS handler as fallback for preflight requests
+// Explicit OPTIONS handler for all routes
 app.options('*', cors(corsOptions));
 
 app.use(express.json());
