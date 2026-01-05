@@ -1,18 +1,29 @@
 const app = require('../../app');
 
 // Export as Vercel serverless function handler
-// For Vercel, we need to handle the request and ensure the path is correct
 module.exports = async (req, res) => {
-  // Log for debugging (remove in production if needed)
-  console.log('Request received:', req.method, req.url);
+  // Log for debugging
+  console.log('=== Serverless Function Invoked ===');
+  console.log('Method:', req.method);
+  console.log('Original req.url:', req.url);
+  console.log('Original req.path:', req.path);
   
-  // Ensure the path includes the full route prefix
-  // Vercel's [...all] catch-all should preserve the full path, but let's be safe
-  if (req.url && !req.url.startsWith('/api/journal-ease')) {
-    // If path was stripped, restore it
-    const path = req.url.startsWith('/') ? req.url : '/' + req.url;
-    req.url = '/api/journal-ease' + path;
-  }
+  // In Vercel, [...all] catch-all routes:
+  // - The file path: /api/journal-ease/[...all].js
+  // - Request to: /api/journal-ease/auth/login
+  // - Vercel passes: req.url = '/auth/login' (prefix stripped)
+  // - We need: '/api/journal-ease/auth/login' for Express
+  
+  // Get the path after /api/journal-ease
+  const pathAfterPrefix = req.url || req.path || '/';
+  
+  // Reconstruct the full path
+  const fullPath = '/api/journal-ease' + (pathAfterPrefix.startsWith('/') ? pathAfterPrefix : '/' + pathAfterPrefix);
+  
+  // Update req.url for Express
+  req.url = fullPath;
+  
+  console.log('Adjusted req.url for Express:', req.url);
   
   // Pass to Express app
   return app(req, res);
