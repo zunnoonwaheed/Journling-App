@@ -8,22 +8,24 @@ module.exports = async (req, res) => {
   console.log('Original req.url:', req.url);
   console.log('Original req.path:', req.path);
   
-  // In Vercel, [...all] catch-all routes:
-  // - The file path: /api/journal-ease/[...all].js
+  // Vercel's behavior with [...all] catch-all:
   // - Request to: /api/journal-ease/auth/login
-  // - Vercel passes: req.url = '/auth/login' (prefix stripped)
-  // - We need: '/api/journal-ease/auth/login' for Express
+  // - Vercel may pass: req.url = '/api/journal-ease/auth/login' (full path) OR '/auth/login' (stripped)
+  // - We need to ensure it's '/api/journal-ease/auth/login' for Express
   
-  // Get the path after /api/journal-ease
-  const pathAfterPrefix = req.url || req.path || '/';
+  const originalUrl = req.url || req.path || '/';
   
-  // Reconstruct the full path
-  const fullPath = '/api/journal-ease' + (pathAfterPrefix.startsWith('/') ? pathAfterPrefix : '/' + pathAfterPrefix);
-  
-  // Update req.url for Express
-  req.url = fullPath;
-  
-  console.log('Adjusted req.url for Express:', req.url);
+  // Only add prefix if it's not already there
+  if (!originalUrl.startsWith('/api/journal-ease')) {
+    // Path was stripped, add prefix back
+    const pathAfterPrefix = originalUrl.startsWith('/') ? originalUrl : '/' + originalUrl;
+    req.url = '/api/journal-ease' + pathAfterPrefix;
+    console.log('Path was stripped, added prefix. New req.url:', req.url);
+  } else {
+    // Path already includes prefix, use as-is
+    req.url = originalUrl;
+    console.log('Path already correct, using as-is:', req.url);
+  }
   
   // Pass to Express app
   return app(req, res);
