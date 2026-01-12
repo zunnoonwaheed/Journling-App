@@ -20,6 +20,8 @@ const corsOptions = {
     // List of allowed origins
     const allowedOrigins = [
       'https://ai-journaling-app-main.vercel.app',
+      'https://frontend-mu-wheat-65.vercel.app',
+      'https://frontend-a0ydnbxlv-zunnoonwaheed-gmailcoms-projects.vercel.app',
       'http://localhost:5173',
     ];
     

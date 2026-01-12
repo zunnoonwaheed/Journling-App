@@ -10,3 +10,6 @@ if (!process.env.VERCEL) {
     console.log(`App running on port ${port}...`);
   });
 }
+
+// Export for Vercel serverless
+module.exports = app;
