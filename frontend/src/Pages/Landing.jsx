@@ -21,6 +21,32 @@ const Landing = () => {
     }
   }, [user, authLoading, navigate]);
 
+  // Handle OAuth callback - sync Google user with backend
+  useEffect(() => {
+    const syncGoogleUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session && session.user.app_metadata.provider === 'google') {
+        try {
+          // Sync with backend
+          const response = await axios.post(API_BASE + '/auth/sync-supabase-user', {
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+            supabase_id: session.user.id
+          });
+
+          if (response.data.status === 'success') {
+            login(response.data.data.user, response.data.data.token);
+          }
+        } catch (err) {
+          console.error('Error syncing Google user:', err);
+        }
+      }
+    };
+
+    syncGoogleUser();
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
