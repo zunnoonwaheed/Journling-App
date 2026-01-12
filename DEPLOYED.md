@@ -216,6 +216,25 @@ Share your app, start journaling, and enjoy! 🚀
 
 ---
 
-*Deployed on: January 12, 2026*
+*Last Updated: January 12, 2026*
 *Powered by: Vercel + Supabase + OpenAI*
 *Source: GitHub*
+
+---
+
+## 🔧 Latest Updates
+
+### Transcription Fix (Latest Deployment)
+✅ **Fixed**: Transcription error handling and logging
+✅ **Fixed**: Supabase audio bucket configuration
+✅ **Improved**: Error messages for better debugging
+✅ **Added**: Comprehensive logging for troubleshooting
+
+**What was fixed:**
+- Corrected environment variable usage for audio bucket
+- Added detailed error logging for OpenAI API calls
+- Improved error responses with specific messages
+- Added validation for API key configuration
+- Enhanced Supabase storage error handling
+
+**Status**: All transcription issues resolved ✓
