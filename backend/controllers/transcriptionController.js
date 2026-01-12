@@ -10,12 +10,20 @@ exports.transcribeAudio = async (req, res) => {
       return res.status(400).json({ status: 'fail', message: 'Audio file is required' });
     }
 
+    console.log('Transcription request received:', {
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
     // Upload to Supabase Storage
     const fileExt = req.file.originalname?.split('.').pop() || 'mp3';
     const filename = `${uuidv4()}.${fileExt}`;
-    const bucket = process.env.SUPABASE_BUCKET || 'audio';
+    const bucket = process.env.SUPABASE_AUDIO_BUCKET || 'audio';
 
-    const { error: uploadError } = await supabase.storage
+    console.log('Uploading to Supabase bucket:', bucket);
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(`audio/${filename}`, req.file.buffer, {
         contentType: req.file.mimetype || 'audio/mpeg',
@@ -23,12 +31,29 @@ exports.transcribeAudio = async (req, res) => {
       });
 
     if (uploadError) {
-      console.error('Supabase upload error:', uploadError.message);
-      return res.status(500).json({ status: 'error', message: 'Failed to upload audio' });
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to upload audio to storage',
+        error: uploadError.message
+      });
     }
+
+    console.log('Audio uploaded successfully:', filename);
 
     const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(`audio/${filename}`);
     const publicUrl = publicUrlData.publicUrl;
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPEN_AI_KEY) {
+      console.error('OpenAI API key not configured');
+      return res.status(500).json({
+        status: 'error',
+        message: 'OpenAI API key not configured'
+      });
+    }
+
+    console.log('Sending to OpenAI Whisper API...');
 
     // Send to OpenAI Whisper
     const formData = new FormData();
@@ -47,6 +72,8 @@ exports.transcribeAudio = async (req, res) => {
       maxBodyLength: Infinity,
     });
 
+    console.log('OpenAI response received');
+
     const transcriptText = response.data.text;
     const language = response.data.language || null;
     const confidence = null;
@@ -62,11 +89,19 @@ exports.transcribeAudio = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Transcription error:', err);
+    console.error('Transcription error:', err.message);
+    if (err.response) {
+      console.error('OpenAI API error:', err.response.status, err.response.data);
+      return res.status(500).json({
+        status: 'error',
+        message: 'OpenAI transcription failed',
+        error: err.response.data?.error?.message || err.response.statusText,
+      });
+    }
     res.status(500).json({
       status: 'error',
       message: 'Transcription failed',
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
     });
   }
 };
