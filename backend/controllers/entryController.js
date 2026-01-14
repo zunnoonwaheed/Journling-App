@@ -98,12 +98,13 @@ exports.getAllEntries = async (req, res) => {
 // Update an entry
 exports.updateEntry = async (req, res) => {
   const { entryId } = req.params;
-  let userId = req.user?.userId || req.params.userId;
+  let userId;
   const { transcript, journal_date } = req.body;
 
   try {
-    // If userId is a UUID (Supabase user), look up the local user ID from email
-    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
       const email = req.user.email;
       const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
       if (userResult.rows[0]) {
@@ -114,6 +115,9 @@ exports.updateEntry = async (req, res) => {
           message: 'User not found in local database. Please sync your account first.'
         });
       }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
     }
 
     // Ensure userId is an integer
@@ -177,11 +181,12 @@ exports.updateEntry = async (req, res) => {
 // Delete entry
 exports.deleteEntry = async (req, res) => {
   const { entryId } = req.params;
-  let userId = req.user?.userId || req.params.userId;
+  let userId;
 
   try {
-    // If userId is a UUID (Supabase user), look up the local user ID from email
-    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+    // ALWAYS use the authenticated user's ID from the token, not from URL params
+    // If Supabase user, convert UUID to local user ID
+    if (req.user?.supabaseUser) {
       const email = req.user.email;
       const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
       if (userResult.rows[0]) {
@@ -192,6 +197,9 @@ exports.deleteEntry = async (req, res) => {
           message: 'User not found in local database. Please sync your account first.'
         });
       }
+    } else {
+      // For regular JWT users
+      userId = req.user?.userId;
     }
 
     // Ensure userId is an integer
@@ -203,15 +211,19 @@ exports.deleteEntry = async (req, res) => {
       });
     }
 
+    console.log(`Attempting to delete entry ${entryId} for user ${userId}`);
+
     const { rowCount } = await db.query(
       'DELETE FROM entries WHERE id = $1 AND user_id = $2',
       [entryId, userId]
     );
 
     if (!rowCount) {
+      console.log(`Entry ${entryId} not found for user ${userId}`);
       return res.status(404).json({ status: 'fail', message: 'Entry not found' });
     }
 
+    console.log(`Successfully deleted entry ${entryId}`);
     res.status(204).json({ status: 'success', data: null });
   } catch (err) {
     console.error('Delete entry error:', err);
