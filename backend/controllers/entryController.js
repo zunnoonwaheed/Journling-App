@@ -155,6 +155,10 @@ exports.updateEntry = async (req, res) => {
 
     params.push(entryId, userId);
 
+    console.log(`[UPDATE] Attempting to update entry ${entryId} for user ${userId}`);
+    console.log(`[UPDATE] Update clauses:`, updateClauses);
+    console.log(`[UPDATE] Params:`, params);
+
     const { rowCount } = await db.query(
       `UPDATE entries
        SET ${updateClauses.join(', ')}, updated_at = NOW()
@@ -162,7 +166,10 @@ exports.updateEntry = async (req, res) => {
       params
     );
 
+    console.log(`[UPDATE] Rows updated:`, rowCount);
+
     if (!rowCount) {
+      console.log(`[UPDATE] Entry ${entryId} not found for user ${userId}`);
       return res.status(404).json({ status: 'fail', message: 'Entry not found' });
     }
 
