@@ -27,7 +27,8 @@ exports.transcribeAudio = async (req, res) => {
     // Upload to Supabase Storage
     const fileExt = req.file.originalname?.split('.').pop() || 'mp3';
     const filename = `${uuidv4()}.${fileExt}`;
-    const bucket = process.env.SUPABASE_AUDIO_BUCKET || 'audio';
+    // Sanitize bucket name - remove any whitespace or newlines
+    const bucket = (process.env.SUPABASE_AUDIO_BUCKET || 'audio').trim().replace(/[\r\n\t]/g, '');
 
     console.log('Uploading to Supabase bucket:', bucket);
 

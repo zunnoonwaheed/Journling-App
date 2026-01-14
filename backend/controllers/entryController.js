@@ -98,10 +98,33 @@ exports.getAllEntries = async (req, res) => {
 // Update an entry
 exports.updateEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId = req.user?.userId || req.params.userId;
   const { transcript, journal_date } = req.body;
 
   try {
+    // If userId is a UUID (Supabase user), look up the local user ID from email
+    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const updateClauses = [];
     const params = [];
 
@@ -154,9 +177,32 @@ exports.updateEntry = async (req, res) => {
 // Delete entry
 exports.deleteEntry = async (req, res) => {
   const { entryId } = req.params;
-  const userId = req.user?.userId || req.params.userId;
+  let userId = req.user?.userId || req.params.userId;
 
   try {
+    // If userId is a UUID (Supabase user), look up the local user ID from email
+    if (req.user?.supabaseUser && typeof userId === 'string' && userId.includes('-')) {
+      const email = req.user.email;
+      const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (userResult.rows[0]) {
+        userId = userResult.rows[0].id;
+      } else {
+        return res.status(404).json({
+          status: 'fail',
+          message: 'User not found in local database. Please sync your account first.'
+        });
+      }
+    }
+
+    // Ensure userId is an integer
+    userId = parseInt(userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid user ID'
+      });
+    }
+
     const { rowCount } = await db.query(
       'DELETE FROM entries WHERE id = $1 AND user_id = $2',
       [entryId, userId]
@@ -169,6 +215,7 @@ exports.deleteEntry = async (req, res) => {
     res.status(204).json({ status: 'success', data: null });
   } catch (err) {
     console.error('Delete entry error:', err);
+    console.error('Error details:', err.stack);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };
