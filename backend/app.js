@@ -1,6 +1,14 @@
 // Load environment variables FIRST, before any other requires
-const dotenv = require('dotenv');
-dotenv.config({ path: './config.env' });
+// In Vercel, environment variables are injected automatically
+// This is only needed for local development
+if (!process.env.VERCEL) {
+  const dotenv = require('dotenv');
+  // Try config.env first, fallback to .env
+  const result = dotenv.config({ path: './config.env' });
+  if (result.error) {
+    dotenv.config({ path: './.env' });
+  }
+}
 
 const express = require('express');
 const cors = require('cors');

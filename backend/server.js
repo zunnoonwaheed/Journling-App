@@ -1,5 +1,8 @@
-// Load env FIRST
-require('dotenv').config({ path: './.env' });
+// Load env FIRST (only needed for local development)
+// In Vercel, environment variables are injected automatically
+if (!process.env.VERCEL) {
+  require('dotenv').config({ path: './.env' });
+}
 
 const app = require('./app');
 

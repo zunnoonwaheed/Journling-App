@@ -6,6 +6,14 @@ const { v4: uuidv4 } = require('uuid');
 // Upload to Supabase storage and proxy transcription to OpenAI
 exports.transcribeAudio = async (req, res) => {
   try {
+    console.log('🎙️ Transcription request started');
+    console.log('Environment check:', {
+      hasOpenAIKey: !!process.env.OPEN_AI_KEY,
+      keyPrefix: process.env.OPEN_AI_KEY?.substring(0, 15) || 'NOT SET',
+      nodeEnv: process.env.NODE_ENV,
+      isVercel: !!process.env.VERCEL
+    });
+
     if (!req.file) {
       return res.status(400).json({ status: 'fail', message: 'Audio file is required' });
     }
@@ -55,6 +63,24 @@ exports.transcribeAudio = async (req, res) => {
 
     console.log('Sending to OpenAI Whisper API...');
 
+    // Clean and validate API key
+    const apiKey = (process.env.OPEN_AI_KEY || '').trim().replace(/[\r\n\t]/g, '');
+    console.log('API key check:', {
+      exists: !!apiKey,
+      length: apiKey.length,
+      prefix: apiKey.substring(0, 15),
+      hasInvalidChars: /[\r\n\t\x00-\x1F\x7F-\xFF]/.test(apiKey)
+    });
+
+    if (!apiKey || apiKey.length < 20) {
+      console.error('Invalid or missing API key!');
+      return res.status(500).json({
+        status: 'error',
+        message: 'OpenAI API key configuration error',
+        error: 'API key is invalid or not set'
+      });
+    }
+
     // Send to OpenAI Whisper
     const formData = new FormData();
     formData.append('file', req.file.buffer, {
@@ -66,7 +92,7 @@ exports.transcribeAudio = async (req, res) => {
     const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
       headers: {
         ...formData.getHeaders(),
-        Authorization: `Bearer ${process.env.OPEN_AI_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
@@ -90,14 +116,29 @@ exports.transcribeAudio = async (req, res) => {
     });
   } catch (err) {
     console.error('Transcription error:', err.message);
+    console.error('Error stack:', err.stack);
+
     if (err.response) {
       console.error('OpenAI API error:', err.response.status, err.response.data);
+      console.error('Request headers:', {
+        hasAuth: !!err.config?.headers?.Authorization,
+        authPrefix: err.config?.headers?.Authorization?.substring(0, 15)
+      });
+
       return res.status(500).json({
         status: 'error',
         message: 'OpenAI transcription failed',
         error: err.response.data?.error?.message || err.response.statusText,
+        details: process.env.NODE_ENV === 'production' ? undefined : {
+          status: err.response.status,
+          data: err.response.data
+        }
       });
     }
+
+    console.error('Non-response error. Has API key:', !!process.env.OPEN_AI_KEY);
+    console.error('API key prefix:', process.env.OPEN_AI_KEY?.substring(0, 15) || 'NOT SET');
+
     res.status(500).json({
       status: 'error',
       message: 'Transcription failed',
