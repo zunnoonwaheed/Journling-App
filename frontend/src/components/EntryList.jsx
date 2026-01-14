@@ -62,20 +62,11 @@ const EntryList = ({ showRecordingControls = false }) => {
 
     const getEntries = async(userId) => {
         if (!userId || !token) return;
-        
-        // Ensure userId is an integer (not a UUID)
-        const numericUserId = typeof userId === 'string' && userId.includes('-') 
-            ? null 
-            : parseInt(userId, 10);
-        
-        if (!numericUserId || isNaN(numericUserId)) {
-            console.warn('Invalid userId for getEntries:', userId);
-            return;
-        }
-        
+
         try {
+            // Pass userId as-is (can be UUID or numeric). Backend will use JWT token to identify user.
             const response = await axios.get(
-                API_BASE + '/users/' + numericUserId +'/entries',
+                API_BASE + '/users/' + userId +'/entries',
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -85,12 +76,15 @@ const EntryList = ({ showRecordingControls = false }) => {
             );
             const entries_data = response.data.data.entries;
             setEntries(entries_data);
-            
+
             // Auto-expand today's date
             const today = new Date().toISOString().split('T')[0];
             setExpandedDays(new Set([today]));
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error fetching entries:', error);
+            if (error.response?.status === 404 && error.response?.data?.message?.includes('not found in local database')) {
+                console.warn('User not synced to local database yet');
+            }
         }
     };
 
@@ -104,26 +98,16 @@ const EntryList = ({ showRecordingControls = false }) => {
             alert('User not authenticated. Please try logging in again.');
             return;
         }
-        
-        // Ensure userId is an integer (not a UUID)
-        const numericUserId = typeof userId === 'string' && userId.includes('-') 
-            ? null 
-            : parseInt(userId, 10);
-        
-        if (!numericUserId || isNaN(numericUserId)) {
-            alert('User ID is invalid. Please wait for account sync to complete or try logging in again.');
-            console.error('Invalid userId:', userId);
-            return;
-        }
-        
+
         if (!script || script.trim() === '') {
             alert('Please record a journal entry first');
             return;
         }
-        
+
         try {
+            // Pass userId as-is (can be UUID or numeric). Backend will use JWT token to identify user.
             const response = await axios.post(
-                API_BASE + '/users/' + numericUserId + '/entries',
+                API_BASE + '/users/' + userId + '/entries',
                 {
                     transcript: script,
                     duration_ms: recordingData.duration_ms,
@@ -139,7 +123,7 @@ const EntryList = ({ showRecordingControls = false }) => {
                 }
             );
             const newEntryData = response.data.data.entry;
-            
+
             // Save transcript to transcripts table if we have a transcript
             // Note: The backend automatically updates the entry with transcript_id, so no need for additional calls
             if (script && script.trim() !== '' && newEntryData.id) {
@@ -165,21 +149,25 @@ const EntryList = ({ showRecordingControls = false }) => {
                     // Don't fail the whole process if transcript saving fails
                 }
             }
-            
+
             // Update entries and expand the date
             setEntries((entries) => [newEntryData, ...entries]);
             setExpandedDays(prev => new Set([...prev, journalDate]));
-            
+
             // Reset form
             setScript("");
             setJournalDate(new Date().toISOString().split('T')[0]);
             setRecordingData({ duration_ms: null, local_path: null });
-            
+
             // Close the popup
             setPopupActive(false);
         } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to save journal entry. Please try again.');
+            console.error('Error creating entry:', error);
+            if (error.response?.status === 404 && error.response?.data?.message?.includes('not found in local database')) {
+                alert('Your account needs to be synced. Please contact support.');
+            } else {
+                alert('Failed to save journal entry. Please try again.');
+            }
         }
     };
 
@@ -665,7 +653,14 @@ const Entry = ({
             );
             onRefresh();
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error deleting entry:', error);
+            if (error.response?.status === 404) {
+                // Entry doesn't exist in backend - refresh list to sync with backend state
+                console.log('Entry not found in backend, refreshing list to sync...');
+                onRefresh();
+            } else {
+                alert('Failed to delete entry. Please try again.');
+            }
         }
     };
 

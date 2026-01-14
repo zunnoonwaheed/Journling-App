@@ -1,76 +1,23 @@
 import { useAuth } from "../contexts/AuthContext";
-import { useEffect, useContext, useState } from "react";
+import { useEffect, useContext } from "react";
 import { UserIdContext} from "./UserIdContext"
 import Transcript from "./Transcript";
 import EntryList from "./EntryList";
 import Logout from "./Logout";
-import axios from "axios";
-import { API_BASE } from "../config/api";
-import { supabase } from "../config/supabase";
 
 const Sidebar = () => {
-  const { user, token, login } = useAuth();
+  const { user, token } = useAuth();
   const { userId, setUserId } = useContext(UserIdContext);
-  const [syncing, setSyncing] = useState(false);
 
-  // Sync Supabase user to local database and set userId
+  // Set userId from authenticated user
   useEffect(() => {
-    const syncUser = async () => {
-      if (!user || !token) return;
-      
-      // Check if this is a Supabase user (UUID format) or local user (integer)
-      const isSupabaseUser = user.id && typeof user.id === 'string' && user.id.includes('-');
-      
-      if (isSupabaseUser && !syncing) {
-        setSyncing(true);
-        try {
-          // Sync Supabase user to local database
-          const response = await axios.post(
-            `${API_BASE}/auth/sync-supabase-user`,
-            {
-              supabaseUserId: user.id,
-              email: user.email,
-              name: user.name,
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          if (response.data.status === 'success') {
-            const localUser = response.data.data.user;
-            // Update auth context with local user ID (integer)
-            login(
-              {
-                id: localUser.id,
-                email: localUser.email,
-                name: localUser.name,
-              },
-              token
-            );
-            // Set the local integer user ID
-            setUserId(localUser.id);
-            console.log('User synced successfully. Local user ID:', localUser.id);
-          } else {
-            console.error('Sync failed:', response.data);
-          }
-        } catch (error) {
-          console.error('Error syncing Supabase user:', error);
-          console.error('Error details:', error.response?.data);
-        } finally {
-          setSyncing(false);
-        }
-      } else if (user.id && !isSupabaseUser) {
-        // Local user (integer ID), just set the ID
-        setUserId(user.id);
-      }
-    };
-
-    syncUser();
-  }, [user, token, login, setUserId]);
+    if (user && user.id) {
+      // Set userId directly from user.id (can be UUID or numeric)
+      // Backend will handle conversion via JWT token
+      setUserId(user.id);
+      console.log('User ID set:', user.id);
+    }
+  }, [user, setUserId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
@@ -84,7 +31,7 @@ const Sidebar = () => {
             <div>
               <h1 className="text-2xl font-bold text-white">Journal Ease</h1>
               <p className="text-sm text-slate-300">
-                {syncing ? 'Syncing account...' : `Welcome back, ${user?.name || 'User'}`}
+                {`Welcome back, ${user?.name || 'User'}`}
               </p>
             </div>
           </div>
