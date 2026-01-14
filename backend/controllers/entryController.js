@@ -109,15 +109,24 @@ exports.updateEntry = async (req, res) => {
   let userId;
   const { transcript, journal_date } = req.body;
 
+  console.log(`[UPDATE] === START UPDATE REQUEST ===`);
+  console.log(`[UPDATE] EntryId from URL params:`, entryId);
+  console.log(`[UPDATE] Request body:`, req.body);
+  console.log(`[UPDATE] req.user:`, req.user);
+
   try {
     // ALWAYS use the authenticated user's ID from the token, not from URL params
     // If Supabase user, convert UUID to local user ID
     if (req.user?.supabaseUser) {
       const email = req.user.email;
+      console.log(`[UPDATE] Supabase user detected. Email:`, email);
       const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+      console.log(`[UPDATE] User lookup result:`, userResult.rows);
       if (userResult.rows[0]) {
         userId = userResult.rows[0].id;
+        console.log(`[UPDATE] Converted to local user ID:`, userId);
       } else {
+        console.log(`[UPDATE] User not found in local database!`);
         return res.status(404).json({
           status: 'fail',
           message: 'User not found in local database. Please sync your account first.'
@@ -126,6 +135,7 @@ exports.updateEntry = async (req, res) => {
     } else {
       // For regular JWT users
       userId = req.user?.userId;
+      console.log(`[UPDATE] Regular JWT user. User ID:`, userId);
     }
 
     // Ensure userId is an integer
@@ -159,6 +169,13 @@ exports.updateEntry = async (req, res) => {
     console.log(`[UPDATE] Update clauses:`, updateClauses);
     console.log(`[UPDATE] Params:`, params);
 
+    // First, check if the entry exists
+    const checkResult = await db.query(
+      'SELECT id, user_id FROM entries WHERE id = $1',
+      [entryId]
+    );
+    console.log(`[UPDATE] Entry existence check:`, checkResult.rows);
+
     const { rowCount } = await db.query(
       `UPDATE entries
        SET ${updateClauses.join(', ')}, updated_at = NOW()
@@ -170,6 +187,7 @@ exports.updateEntry = async (req, res) => {
 
     if (!rowCount) {
       console.log(`[UPDATE] Entry ${entryId} not found for user ${userId}`);
+      console.log(`[UPDATE] === END UPDATE REQUEST (FAILED) ===`);
       return res.status(404).json({ status: 'fail', message: 'Entry not found' });
     }
 
